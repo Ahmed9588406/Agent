@@ -56,6 +56,7 @@ const ChatBox = ({ token = "demo-token", userName: userNameProp }) => {
       const data = await res.json();
       setIsTyping(false);
 
+      // Show the LLM response from backend (data.response)
       const llmMessage = {
         text: data.response || "Sorry, I couldn't get a response from the server.",
         isUser: false,
@@ -147,32 +148,36 @@ const ChatBox = ({ token = "demo-token", userName: userNameProp }) => {
         </div>
       </div>
 
-      {/* Messages Container */}
-      <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4 scrollbar-thin scrollbar-thumb-slate-300 scrollbar-track-transparent">
-        {messages.map((msg, index) => (
-          <div
+
+        <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4 scrollbar-thin scrollbar-thumb-slate-300 scrollbar-track-transparent">
+          {messages.map((msg, index) => (
+            <div
             key={index}
             className={`flex gap-3 animate-in slide-in-from-bottom-2 duration-300 ${
               msg.isUser ? "justify-end" : "justify-start"
             }`}
             style={{ animationDelay: `${index * 50}ms` }}
-          >
+            >
             {!msg.isUser && (
-              <div className="flex-shrink-0">
-                <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full flex items-center justify-center shadow-md">
-                  <Bot className="w-4 h-4 text-white" />
-                </div>
+              <div className="flex-shrink-0 flex flex-col items-center">
+                <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full flex items-center justify-center shadow-md mb-1">
+                <img
+                src="/bumblebee.png"
+                alt="Bumblebee"
+                className="w-8 h-8 rounded-full border border-slate-200 shadow-lg object-cover"
+                />                </div>
+                
               </div>
             )}
             
             <div className={`max-w-xs sm:max-w-sm md:max-w-md lg:max-w-lg xl:max-w-xl group ${msg.isUser ? "order-first" : ""}`}>
               <div
                 className={`px-4 py-3 rounded-2xl shadow-sm transition-all duration-200 hover:shadow-md ${
-                  msg.isUser
-                    ? "bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-br-md"
-                    : msg.isError
-                    ? "bg-red-50 text-red-700 border border-red-200 rounded-bl-md"
-                    : "bg-white text-slate-800 border border-slate-200 rounded-bl-md hover:bg-slate-50"
+                msg.isUser
+                  ? "bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-br-md"
+                  : msg.isError
+                  ? "bg-red-50 text-red-700 border border-red-200 rounded-bl-md"
+                  : "bg-white text-slate-800 border border-slate-200 rounded-bl-md hover:bg-slate-50"
                 }`}
               >
                 <p className="text-sm leading-relaxed">{msg.text}</p>
@@ -185,14 +190,14 @@ const ChatBox = ({ token = "demo-token", userName: userNameProp }) => {
             {msg.isUser && (
               <div className="flex-shrink-0">
                 <div className="w-8 h-8 bg-gradient-to-r from-emerald-500 to-teal-600 rounded-full flex items-center justify-center shadow-md">
-                  <User className="w-4 h-4 text-white" />
+                <User className="w-4 h-4 text-white" />
                 </div>
               </div>
             )}
-          </div>
-        ))}
+            </div>
+          ))}
 
-        {/* Typing Indicator */}
+          {/* Typing Indicator */}
         {isTyping && (
           <div className="flex gap-3 animate-in slide-in-from-bottom-2 duration-300">
             <div className="flex-shrink-0">

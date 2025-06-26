@@ -196,7 +196,7 @@ def store_conversation_with_embedding(user_id, user_message, llm_response, db=No
 async def list_user_conversations(
     request: Request,
     user_id: str = Depends(get_current_user_id),
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_db),  # Only needed if you have a local conversations table
     limit: int = 20,
 ):
     """
@@ -225,7 +225,7 @@ async def list_user_conversations(
 async def get_conversation_by_id(
     conversation_id: str,
     user_id: str = Depends(get_current_user_id),
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_db),  # Only needed if you have a local conversations table
 ):
     """
     Retrieve a specific conversation by id.
@@ -273,9 +273,12 @@ async def health_check():
     """Health check endpoint."""
     try:
         # Test database connection
-        from app.db import engine
-        with engine.connect() as connection:
-            connection.execute(text("SELECT 1"))
+        # from app.db import engine
+        # with engine.connect() as connection:
+        #     connection.execute(text("SELECT 1"))
+        # Instead, just check Supabase REST API
+        from app.db import supabase
+        supabase.table("products").select("*").limit(1).execute()
         # Test Qdrant connection
         from app.qdrant_utils import client
         collections = client.get_collections()
@@ -436,85 +439,4 @@ async def chat_endpoint(
     except Exception as e:
         logging.error(f"Chat endpoint error: {e}")
         return {"response": "عذراً، حدث خطأ. يرجى المحاولة مرة أخرى أو التواصل مع فريق الدعم."}
-# IMPROVED EGYPTIAN CHAT ENDPOINT
-@app.post("/egyptian-chat")
-async def egyptian_chat_endpoint(
-    request: ChatRequest,
-    fastapi_request: Request,
-    user_id: str = Depends(get_current_user_id),
-    db: Session = Depends(get_db),
-):
-    """
-    Egyptian Arabic chat with enhanced product search.
-    """
-    try:
-        question = request.question
-        logging.info(f"Processing Egyptian chat question: {question}")
-        # Get conversation history
-        conversation_history = []
-        if user_id:
-            conversation_history = get_conversation_history(user_id, limit=5)
-        history_context = ""
-        if conversation_history:
-            history_context = "\n".join([
-                f"العميل: {turn['user_message']}\nالمساعد: {turn['llm_response']}" 
-                for turn in conversation_history
-            ])
-        # Enhanced product search
-        matched_products = await enhanced_product_search(question, top_k=8)
-        if matched_products:
-            logging.info(f"Found {len(matched_products)} products for Egyptian chat")
-            product_context = ""
-            for i, product_data in enumerate(matched_products, 1):
-                in_stock_eg = "أيوه موجود ✅" if product_data.get('in_stock', False) else "لأ مش موجود ❌"
-                quantity = product_data.get('quantity', 0)
-                product_context += (
-                    f"🔹 المنتج {i}: {product_data.get('name', '')}\n"
-                    f"📦 متوفر: {in_stock_eg}\n"
-                    f"🔢 الكمية: {quantity}\n"
-                    f"🌐 لينك الصورة: {product_data.get('image_url', '')}\n"
-                )
-                description = product_data.get('description', '')
-                if description:
-                    product_context += f"📄 الوصف: {description}\n"
-                category = product_data.get('category', '')
-                if category:
-                    product_context += f"📂 النوع: {category}\n"
-                product_context += "\n"
-            prompt = f"""
-الكلام اللي فات:
-{history_context}
-معلومات المنتجات:
-{product_context}
-سؤال العميل: {question}
-تعليمات:
-1. جاوب باللهجة المصرية العامية
-2. كون ودود وبسيط في الكلام
-3. اذكر كل المنتجات اللي العميل سأل عنها
-4. وضح إيه المتوفر وإيه مش متوفر
-5. لو حاجة مش موجودة، اقترح بدايل
-6. استخدم كلمات زي "أيوه"، "لأ"، "كده"، "يعني"
-7. خلي الرد مفيد ومفهوم
-"""
-            response = call_deepseek(prompt)
-            if user_id:
-                store_conversation_with_embedding(user_id, question, response, db=db)
-            return {"response": response}
-        # FAQ fallback
-        faq_results = search_documents(question, collection_name="support_docs")
-        faq_context = "\n".join([result["text"] for result in faq_results]) if faq_results else "مفيش معلومات متاحة."
-        prompt = f"""
-الكلام اللي فات:
-{history_context}
-معلومات من قاعدة البيانات:
-{faq_context}
-سؤال العميل: {question}
-جاوب باللهجة المصرية. لو مش لاقي معلومات كفاية، قول للعميل يتصل بالدعم.
-"""
-        response = call_deepseek(prompt)
-        if user_id:
-            store_conversation_with_embedding(user_id, question, response, db=db)
-        return {"response": response}
-    except Exception as e:
-        logging.error(f"Egyptian chat error: {e}")
-        return {"response": "عذراً يا فندم، حصل خطأ. ممكن تجرب تاني أو تتصل بالدعم؟"}
+
