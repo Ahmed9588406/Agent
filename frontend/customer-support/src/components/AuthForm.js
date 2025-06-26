@@ -28,15 +28,28 @@ const AuthForm = ({ type }) => {
       setMessage(response.data.message);
       // Store session token if present in response or cookie
       if (type === "login" && response.data.message === "Login successful") {
-        // Try to get token from response (if backend returns it)
-        if (response.data.session_token) {
-          localStorage.setItem("session_token", response.data.session_token);
-        } else {
-          // Or try to get from cookie (browser will send it automatically if withCredentials is true)
-          // Optionally, you can call a /me or /profile endpoint to verify and get user info
-          localStorage.setItem("session_token", "1"); // Dummy value to indicate logged in
-        }
-        navigate("/chat");
+        // Wait a moment to ensure cookie is set before fetching user info
+        setTimeout(async () => {
+          try {
+            // Always send withCredentials: true to include cookies
+            const infoRes = await axios.get("http://127.0.0.1:8000/user/info", {
+              withCredentials: true
+            });
+            const infoData = infoRes.data;
+            console.log("User info fetched:", infoData); // Debug log
+            navigate("/chat", {
+              state: {
+                token: response.data.user_id,
+                userName: infoData.name,
+                email: infoData.email
+              }
+            });
+          } catch (infoErr) {
+            console.error("Failed to fetch user info:", infoErr); // Debug log
+            setMessage("Login succeeded but failed to fetch user info. Please check your backend CORS settings, cookie settings, and ensure cookies are allowed.");
+          }
+        }, 1000); // Increase delay to 1000ms (1 second)
+        return;
       }
     } catch (error) {
       setMessage(error.response?.data?.detail || "An error occurred.");

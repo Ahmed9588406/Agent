@@ -3,6 +3,8 @@ from supabase import create_client
 from fastapi import APIRouter, HTTPException, Request, Response
 from pydantic import BaseModel
 from fastapi.responses import JSONResponse
+from fastapi.middleware.cors import CORSMiddleware
+import httpx
 
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
@@ -56,27 +58,30 @@ async def signup(user: User):
 @user_router.post("/login")
 async def login(user: UserLogin, response: Response):
     try:
-        # Do NOT log user passwords or tokens for security reasons
         auth_response = supabase.auth.sign_in_with_password({
             "email": user.email,
             "password": user.password
         })
         if hasattr(auth_response, "error") and auth_response.error:
             raise HTTPException(status_code=401, detail="Invalid credentials")
+        print("Auth response session:", getattr(auth_response, "session", None))
+        print("Auth response user:", getattr(auth_response, "user", None))
         session_token = getattr(auth_response.session, 'access_token', None)
         if session_token:
-            # Set cookie for session persistence; frontend should send this cookie with requests
             response.set_cookie(
                 key="session_token",
                 value=session_token,
                 httponly=True,
-                max_age=60*60*24,  # 1 day
-                samesite="lax",    # or "strict" or "none" as needed
-                secure=False       # set to True in production with HTTPS
+                max_age=60*60*24,
+                samesite="none",
+                secure=True  # Required for SameSite=none
             )
-        return {"message": "Login successful", "user_id": getattr(auth_response.user, 'id', None)}
+        return {
+            "message": "Login successful",
+            "user_id": getattr(auth_response.user, 'id', None),
+            "email": getattr(auth_response.user, 'email', None)
+        }
     except Exception as e:
-        # Do NOT log sensitive information like passwords or tokens
         return {"error": str(e)}
 
 @user_router.get("/info")
@@ -85,27 +90,47 @@ async def get_user_info(request: Request):
     if not session_token:
         raise HTTPException(status_code=401, detail="Not authenticated")
     try:
-        # Authenticate user via Supabase session token
-        user_resp = supabase.auth.get_user(session_token)
-        user_id = None
-        if hasattr(user_resp, "user") and user_resp.user:
-            user_id = getattr(user_resp.user, "id", None)
-        elif isinstance(user_resp, dict) and "user" in user_resp:
-            user_id = user_resp["user"].get("id")
+        SUPABASE_URL = os.getenv("SUPABASE_URL")
+        SUPABASE_KEY = os.getenv("SUPABASE_KEY")
+        headers = {
+            "Authorization": f"Bearer {session_token}",
+            "apikey": SUPABASE_KEY
+        }
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(f"{SUPABASE_URL}/auth/v1/user", headers=headers)
+        if resp.status_code != 200:
+            raise HTTPException(status_code=401, detail="Invalid or expired session token")
+        user_data = resp.json()
+        user_id = user_data.get("id")
+        email = user_data.get("email")
         if not user_id:
-            raise HTTPException(status_code=401, detail="User not found")
-        # Fetch user's name and profile_image_url from users table using user_id
+            raise HTTPException(status_code=401, detail="User not found in auth")
         user_row = supabase.table("users").select("name,profile_image_url").eq("id", user_id).single().execute()
         name = None
         profile_image_url = None
         if hasattr(user_row, "data") and user_row.data:
-            name = user_row.data.get("name")
-            profile_image_url = user_row.data.get("profile_image_url")
+            if user_row.data.get("name") is not None:
+                name = user_row.data.get("name")
+                profile_image_url = user_row.data.get("profile_image_url")
         elif isinstance(user_row, dict) and "data" in user_row and user_row["data"]:
-            name = user_row["data"].get("name")
-            profile_image_url = user_row["data"].get("profile_image_url")
+            if user_row["data"].get("name") is not None:
+                name = user_row["data"].get("name")
+                profile_image_url = user_row["data"].get("profile_image_url")
         if not name:
-            raise HTTPException(status_code=404, detail="User name not found")
-        return {"name": name, "profile_image_url": profile_image_url}
+            raise HTTPException(status_code=404, detail="User name not found in users table")
+        return {"name": name, "profile_image_url": profile_image_url, "email": email}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error fetching user info: {str(e)}")
+
+# Add this block at the top-level where your FastAPI app is created (not inside the router)
+from fastapi import FastAPI
+
+app = FastAPI()
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000"],  # Change to your frontend's URL/port
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)

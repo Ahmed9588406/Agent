@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from "react";
-import { Send, Bot, User, Sparkles } from "lucide-react";
+import { Send, Bot, User } from "lucide-react"; // Removed Sparkles
+import { useNavigate } from "react-router-dom"; // Add this import
 
 const ChatBox = ({ token = "demo-token", userName: userNameProp }) => {
   const [userName, setUserName] = useState(userNameProp || null);
@@ -17,6 +18,7 @@ const ChatBox = ({ token = "demo-token", userName: userNameProp }) => {
   const [isTyping, setIsTyping] = useState(false);
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
+  const navigate = useNavigate(); // Add this line
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -44,9 +46,17 @@ const ChatBox = ({ token = "demo-token", userName: userNameProp }) => {
         credentials: "include"
       });
 
+      if (res.status === 401) {
+        // Session expired or not authenticated
+        localStorage.removeItem("session_token");
+        navigate("/login");
+        return;
+      }
+
       const data = await res.json();
       setIsTyping(false);
 
+      // Show the LLM response from backend (data.response)
       const llmMessage = {
         text: data.response || "Sorry, I couldn't get a response from the server.",
         isUser: false,
@@ -81,7 +91,12 @@ const ChatBox = ({ token = "demo-token", userName: userNameProp }) => {
         credentials: "include"
       })
         .then(res => {
-          if (res.status === 401) return null; // Not authenticated, don't update userName
+          if (res.status === 401) {
+            // Not authenticated, redirect to login
+            localStorage.removeItem("session_token");
+            navigate("/login");
+            return null;
+          }
           return res.json();
         })
         .then(data => {
@@ -89,7 +104,7 @@ const ChatBox = ({ token = "demo-token", userName: userNameProp }) => {
         })
         .catch(() => setUserName(null));
     }
-  }, [userNameProp]);
+  }, [userNameProp, navigate]);
 
   // Update only the first message with the username, preserving chat history
   useEffect(() => {
@@ -133,32 +148,36 @@ const ChatBox = ({ token = "demo-token", userName: userNameProp }) => {
         </div>
       </div>
 
-      {/* Messages Container */}
-      <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4 scrollbar-thin scrollbar-thumb-slate-300 scrollbar-track-transparent">
-        {messages.map((msg, index) => (
-          <div
+
+        <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4 scrollbar-thin scrollbar-thumb-slate-300 scrollbar-track-transparent">
+          {messages.map((msg, index) => (
+            <div
             key={index}
             className={`flex gap-3 animate-in slide-in-from-bottom-2 duration-300 ${
               msg.isUser ? "justify-end" : "justify-start"
             }`}
             style={{ animationDelay: `${index * 50}ms` }}
-          >
+            >
             {!msg.isUser && (
-              <div className="flex-shrink-0">
-                <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full flex items-center justify-center shadow-md">
-                  <Bot className="w-4 h-4 text-white" />
-                </div>
+              <div className="flex-shrink-0 flex flex-col items-center">
+                <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full flex items-center justify-center shadow-md mb-1">
+                <img
+                src="/bumblebee.png"
+                alt="Bumblebee"
+                className="w-8 h-8 rounded-full border border-slate-200 shadow-lg object-cover"
+                />                </div>
+                
               </div>
             )}
             
             <div className={`max-w-xs sm:max-w-sm md:max-w-md lg:max-w-lg xl:max-w-xl group ${msg.isUser ? "order-first" : ""}`}>
               <div
                 className={`px-4 py-3 rounded-2xl shadow-sm transition-all duration-200 hover:shadow-md ${
-                  msg.isUser
-                    ? "bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-br-md"
-                    : msg.isError
-                    ? "bg-red-50 text-red-700 border border-red-200 rounded-bl-md"
-                    : "bg-white text-slate-800 border border-slate-200 rounded-bl-md hover:bg-slate-50"
+                msg.isUser
+                  ? "bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-br-md"
+                  : msg.isError
+                  ? "bg-red-50 text-red-700 border border-red-200 rounded-bl-md"
+                  : "bg-white text-slate-800 border border-slate-200 rounded-bl-md hover:bg-slate-50"
                 }`}
               >
                 <p className="text-sm leading-relaxed">{msg.text}</p>
@@ -171,14 +190,14 @@ const ChatBox = ({ token = "demo-token", userName: userNameProp }) => {
             {msg.isUser && (
               <div className="flex-shrink-0">
                 <div className="w-8 h-8 bg-gradient-to-r from-emerald-500 to-teal-600 rounded-full flex items-center justify-center shadow-md">
-                  <User className="w-4 h-4 text-white" />
+                <User className="w-4 h-4 text-white" />
                 </div>
               </div>
             )}
-          </div>
-        ))}
+            </div>
+          ))}
 
-        {/* Typing Indicator */}
+          {/* Typing Indicator */}
         {isTyping && (
           <div className="flex gap-3 animate-in slide-in-from-bottom-2 duration-300">
             <div className="flex-shrink-0">
