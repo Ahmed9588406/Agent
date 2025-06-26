@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from "react";
-import { Send, Bot, User, Sparkles } from "lucide-react";
+import { Send, Bot, User } from "lucide-react"; // Removed Sparkles
+import { useNavigate } from "react-router-dom"; // Add this import
 
 const ChatBox = ({ token = "demo-token", userName: userNameProp }) => {
   const [userName, setUserName] = useState(userNameProp || null);
@@ -17,6 +18,7 @@ const ChatBox = ({ token = "demo-token", userName: userNameProp }) => {
   const [isTyping, setIsTyping] = useState(false);
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
+  const navigate = useNavigate(); // Add this line
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -43,6 +45,13 @@ const ChatBox = ({ token = "demo-token", userName: userNameProp }) => {
         body: JSON.stringify({ question: text }),
         credentials: "include"
       });
+
+      if (res.status === 401) {
+        // Session expired or not authenticated
+        localStorage.removeItem("session_token");
+        navigate("/login");
+        return;
+      }
 
       const data = await res.json();
       setIsTyping(false);
@@ -81,7 +90,12 @@ const ChatBox = ({ token = "demo-token", userName: userNameProp }) => {
         credentials: "include"
       })
         .then(res => {
-          if (res.status === 401) return null; // Not authenticated, don't update userName
+          if (res.status === 401) {
+            // Not authenticated, redirect to login
+            localStorage.removeItem("session_token");
+            navigate("/login");
+            return null;
+          }
           return res.json();
         })
         .then(data => {
@@ -89,7 +103,7 @@ const ChatBox = ({ token = "demo-token", userName: userNameProp }) => {
         })
         .catch(() => setUserName(null));
     }
-  }, [userNameProp]);
+  }, [userNameProp, navigate]);
 
   // Update only the first message with the username, preserving chat history
   useEffect(() => {

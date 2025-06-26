@@ -90,18 +90,35 @@ def insert_documents(
         return False
 
 
-def search_documents(query: str, collection_name: str, top_k: int = 5):
+def search_documents(
+    query: str,
+    collection_name: str,
+    top_k: int = 5,
+    filter: Optional[Dict] = None
+):
     """
     Search Qdrant for similar documents to the query string.
+    Optionally filter by payload (e.g., user_id).
     Returns list of dicts with id, score, and payload.
     """
     try:
         query_vector = embedding_model.encode([query])[0].tolist()
-        logger.debug(f"Searching for top {top_k} results in '{collection_name}'")
+        search_filter = None
+        if filter:
+            from qdrant_client.http import models as qmodels
+            # Build Qdrant filter for exact match on each key
+            must = []
+            for k, v in filter.items():
+                must.append(qmodels.FieldCondition(
+                    key=k,
+                    match=qmodels.MatchValue(value=v)
+                ))
+            search_filter = qmodels.Filter(must=must)
         hits = client.search(
             collection_name=collection_name,
             query_vector=query_vector,
-            limit=top_k
+            limit=top_k,
+            query_filter=search_filter
         )
         results = [
             {
@@ -111,7 +128,6 @@ def search_documents(query: str, collection_name: str, top_k: int = 5):
             }
             for hit in hits
         ]
-        logger.debug(f"Found {len(results)} matching documents")
         return results
     except Exception as e:
         logger.error(f"Search failed: {e}")
