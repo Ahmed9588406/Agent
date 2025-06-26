@@ -1,0 +1,9 @@
+fastapi==0.103.2
+uvicorn==0.23.2
+sqlalchemy==2.0.21
+psycopg2-binary==2.9.9
+chromadb==0.4.14
+openrouter==0.1.0  # For OpenRouter API
+pydantic==2.5.3
+requests==2.31.0
+dotenv==1.0.0
